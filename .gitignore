@@ -1,0 +1,4 @@
+/docker/mysql
+/docker/nginx
+/docker/db
+/docker/minio/*
