@@ -19,8 +19,9 @@ RUN docker-php-ext-install pdo_mysql
 # USER www-data
 
 # Set working directory
-WORKDIR /var/www/html
+WORKDIR /var/www/
+
 
 # Copy existing application directory contents to the working directory
 COPY ./ .
-# RUN composer install
+RUN composer install
