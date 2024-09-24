@@ -1,5 +1,4 @@
-FROM php:8.1-fpm
-
+FROM php:8.2-fpm
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
@@ -15,13 +14,17 @@ COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr
 RUN install-php-extensions gettext intl calendar redis zip pcntl gd
 RUN docker-php-ext-install pdo_mysql
 
-# Set the user
-# USER www-data
+# Create the user and set the home directory
+RUN useradd -ms /bin/bash hiepdo
+
+# Change ownership of the directory
+RUN chown -R hiepdo:hiepdo /var/www/html
+
+# Switch to the new user
+USER hiepdo
 
 # Set working directory
-WORKDIR /var/www/
-
+WORKDIR /var/www/html
 
 # Copy existing application directory contents to the working directory
 COPY ./ .
-RUN composer install
