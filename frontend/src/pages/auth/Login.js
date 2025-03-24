@@ -1,6 +1,9 @@
 import React from "react";
-import "../../public/auth/login.css"; // Đảm bảo CSS nằm trong thư mục src
+import "../../public/auth/login.css"; 
 import videoBg from "../../public/auth/Ipad.mp4";
+import { Link } from "react-router-dom"; 
+
+
 const Login = () => {
   return (
     <div className="video-container">
@@ -44,7 +47,7 @@ const Login = () => {
 
               <div className="sub-w3l">
                 <h6>
-                  <a href="#">Forgot Password?</a>
+                <Link to="/forgot-password">Forgot Password?</Link>
                 </h6>
                 <div className="right-w3l">
                   <input type="submit" value="Login" />

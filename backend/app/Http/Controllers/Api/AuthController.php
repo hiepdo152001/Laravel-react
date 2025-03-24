@@ -18,6 +18,7 @@ class AuthController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'user_name'=>$request->user_name
         ]);
 
         return response()->json([
@@ -34,14 +35,21 @@ class AuthController extends Controller
                 'message' => 'Invalid login details'
             ], 401);
         }
-
+        
         $user = Auth::user();
-        $token = $user->createToken('auth_token')->plainTextToken;
+        
+        if ($user->status !== 'active') {
+            return response()->json([
+                'message' => 'Your account is not active. Please contact support.'
+            ], 403);
+        }
 
+        $token = $user->createToken('auth_token')->plainTextToken;
+        
         return response()->json([
             'message' => 'Login successful!',
             'access_token' => $token,
-            'token_type' => 'Bearer',
-        ]);
+        ], 200);
+        
     }
 }

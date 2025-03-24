@@ -24,15 +24,15 @@ class RegisterRequest extends FormRequest
         return [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
+            'password' => 'required|string|min:8',
             'user_name' => 'required|string|max:50|unique:users',
-            'birth_day' => 'required|date|before:today',
-            'gen' => 'required|string|in:male,female,other',
-            'my_name' => 'nullable|string|max:255',
-            'phone' => 'required|string|min:10|max:15|regex:/^([0-9\s\-\+\(\)]*)$/',
-            'address' => 'nullable|string|max:255',
-            'university' => 'nullable|string|max:255',
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            // 'birth_day' => 'required|date|before:today',
+            // 'gen' => 'required|string|in:male,female,other',
+            // 'my_name' => 'nullable|string|max:255',
+            // 'phone' => 'required|string|min:10|max:15|regex:/^([0-9\s\-\+\(\)]*)$/',
+            // 'address' => 'nullable|string|max:255',
+            // 'university' => 'nullable|string|max:255',
+            // 'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ];
     }
 

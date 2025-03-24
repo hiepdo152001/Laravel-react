@@ -54,7 +54,7 @@ services:
             - php
             - mysql
         ports:
-            - 8000:8000
+            - 80:80
         networks:
             - backend
             - frontend
