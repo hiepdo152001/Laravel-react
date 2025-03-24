@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import "../../public/auth/login.css"; 
 import videoBg from "../../public/auth/Ipad.mp4";
+import InputAuth from "../../components/auth/InputAuth";
 
 const ForgotPassword = () => {
   return (
@@ -18,19 +19,7 @@ const ForgotPassword = () => {
               <h2>Forgot Password</h2>
             </div>
             <form action="#" method="post">
-              <div className="input-container">
-                <input
-                  placeholder="Enter your email"
-                  name="email"
-                  className="user"
-                  type="email"
-                  required
-                />
-                <span className="icon1">
-                  <i className="fa fa-envelope" aria-hidden="true"></i>
-                </span>
-              </div>
-
+            <InputAuth type="email" placeholder="Enter your email" name="email" iconClass="fa fa-envelope" />
               <div className="sub-w3l">
                 <h6>
                   <Link to="/login">Back to Login</Link>

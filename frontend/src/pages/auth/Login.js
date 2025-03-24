@@ -1,64 +1,87 @@
-import React from "react";
-import "../../public/auth/login.css"; 
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import axios from "axios";
+import InputAuth from "../../components/auth/InputAuth";
+import ButtonAuth from "../../components/auth/ButtonAuth";
 import videoBg from "../../public/auth/Ipad.mp4";
-import { Link } from "react-router-dom"; 
 
 
-const Login = () => {
+const LoginForm = () => {
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+  const [error, setError] = useState("");
+  
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(""); 
+    try {
+      const response = await axios.post("http://localhost:80/api/login", formData, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      alert("Đăng nhập thành công!");
+      localStorage.setItem("token", response.data.access_token);
+
+      window.location.href = "/dashboard";
+    } catch (error) {
+      console.error("Login error:", error.response?.data || error.message);
+      setError(error.response?.data?.message || "Đăng nhập thất bại!");
+    }
+  };
   return (
-    <div className="video-container">
-      <video autoPlay loop muted className="background-video">
-        <source src={videoBg} type="video/mp4" />
-        Your browser does not support the video tag.
-      </video>
+  <div className="video-container">
+    <video autoPlay loop muted className="background-video">
+      <source src={videoBg} type="video/mp4" />
+    </video>
 
-      <div className="content">
-        <div className="main-content-agile">
-          <div className="sub-main-w3">
-            <div className="wthree-pro">
-              <h2>Login Here</h2>
-            </div>
-            <form action="#" method="post">
-              <div className="input-container">
-                <input
-                  placeholder="Username or E-mail"
-                  name="Name"
-                  className="user"
-                  type="email"
-                  required
-                />
-                <span className="icon1">
-                  <i className="fa fa-user" aria-hidden="true"></i>
-                </span>
-              </div>
-
-              <div className="input-container">
-                <input
-                  placeholder="Password"
-                  name="Password"
-                  className="pass"
-                  type="password"
-                  required
-                />
-                <span className="icon2">
-                  <i className="fa fa-unlock" aria-hidden="true"></i>
-                </span>
-              </div>
-
-              <div className="sub-w3l">
-                <h6>
-                <Link to="/forgot-password">Forgot Password?</Link>
-                </h6>
-                <div className="right-w3l">
-                  <input type="submit" value="Login" />
-                </div>
-              </div>
-            </form>
+    <div className="content">
+      <div className="main-content-agile">
+        <div className="sub-main-w3">
+          <div className="wthree-pro">
+            <h2>Login Here</h2>
           </div>
+          <form onSubmit={handleSubmit}>
+            <InputAuth
+              type="email"
+              placeholder="Username or E-mail"
+              name="email"
+              iconClass="fa fa-user"
+              value={formData.email}
+              onChange={handleChange} // Gán sự kiện thay đổi input
+            />
+            <InputAuth
+              type="password"
+              placeholder="Password"
+              name="password"
+              iconClass="fa fa-unlock"
+              value={formData.password}
+              onChange={handleChange} // Gán sự kiện thay đổi input
+            />
+
+            {error && <p style={{ color: "red" }}>{error}</p>}
+
+            <div className="sub-w3l">
+              <h6>
+                <Link to="/forgot-password">Forgot Password?</Link>
+              </h6>
+              <ButtonAuth type="submit" value="Login" />
+            </div>
+          </form>
         </div>
       </div>
     </div>
+  </div>
   );
 };
 
-export default Login;
+export default LoginForm;
