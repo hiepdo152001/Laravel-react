@@ -10,6 +10,7 @@ class EmulatorService
     private string $microemuJar;
     private string $storageScreens;
     private string $shmScreens;
+    private string $tabDataRoot;
     private static array $lastCaptureTime = [];
 
     public function __construct()
@@ -17,6 +18,7 @@ class EmulatorService
         $this->microemuJar = base_path('storage/app/microemulator/microemulator-2.0.4/microemulator.jar');
         $this->storageScreens = base_path('storage/app/public/tabs');
         $this->shmScreens = is_dir('/dev/shm') && is_writable('/dev/shm') ? '/dev/shm/tabs' : $this->storageScreens;
+        $this->tabDataRoot = base_path('storage/app/tabs_data');
 
         if (!file_exists($this->storageScreens)) {
             @mkdir($this->storageScreens, 0777, true);
@@ -24,18 +26,32 @@ class EmulatorService
         if ($this->shmScreens === '/dev/shm/tabs' && !file_exists($this->shmScreens)) {
             @mkdir($this->shmScreens, 0777, true);
         }
+        if (!file_exists($this->tabDataRoot)) {
+            @mkdir($this->tabDataRoot, 0777, true);
+        }
     }
 
     public function start(Tab $tab): bool
     {
         $this->stop($tab);
 
-        $display = 100 + ($tab->id % 800);
-        $jarPath = $this->resolveJarPath($tab->game_name);
+        $display = $this->allocateDisplay($tab);
 
-        if (!file_exists($jarPath)) {
-            Log::error("JAR not found for tab #{$tab->id}: {$jarPath}");
+        // 1. Setup isolated data directory & dedicated game JAR for this tab
+        $tabDir = "{$this->tabDataRoot}/tab_{$tab->id}";
+        if (!file_exists($tabDir)) {
+            @mkdir($tabDir, 0777, true);
+        }
+
+        $sourceJar = $this->resolveJarPath($tab->game_name);
+        if (!file_exists($sourceJar)) {
+            Log::error("JAR not found for tab #{$tab->id}: {$sourceJar}");
             return false;
+        }
+
+        $tabJar = "{$tabDir}/game_{$tab->id}.jar";
+        if (!file_exists($tabJar) || filesize($tabJar) === 0) {
+            @copy($sourceJar, $tabJar);
         }
 
         if (!file_exists($this->microemuJar)) {
@@ -43,23 +59,29 @@ class EmulatorService
             return false;
         }
 
-        // 1. Clean stale X11 lock files and kill any existing Xvfb/Java on this display
+        // 2. Clean stale X11 lock files and kill any existing Xvfb/Java on this display
         exec("rm -f /tmp/.X{$display}-lock /tmp/.X11-unix/X{$display} 2>/dev/null");
         exec("kill $(pgrep -f 'Xvfb :{$display}') 2>/dev/null");
         exec("kill $(pgrep -f 'openbox.*:{$display}') 2>/dev/null");
         exec("kill $(pgrep -f 'tab.display={$display}') 2>/dev/null");
+        exec("kill $(pgrep -f 'tab.id={$tab->id}') 2>/dev/null");
 
-        // 2. Start Xvfb virtual frame buffer (320x540x24) with -noreset for persistence
+        // 3. Start Xvfb virtual frame buffer (320x540x24) with -noreset for persistence
         $xvfbCmd = "Xvfb :{$display} -screen 0 320x540x24 -noreset > /dev/null 2>&1 &";
         exec($xvfbCmd);
         usleep(300000); // 300ms
 
-        // 2b. Start Openbox Window Manager to handle window focus & keystrokes reliably
+        // 4. Start Openbox Window Manager to handle window focus & keystrokes reliably
         exec("DISPLAY=:{$display} openbox > /dev/null 2>&1 &");
         usleep(150000); // 150ms
 
-        // 3. Start MicroEmulator with JVM performance tuning (G1GC + memory limit + offscreen tuning)
-        $javaCmd = "DISPLAY=:{$display} java -XX:+UseG1GC -Xms64m -Xmx256m -Dtab.display={$display} -Dtab.id={$tab->id} -Dsun.java2d.pmoffscreen=false -jar " . escapeshellarg($this->microemuJar) . " " . escapeshellarg($jarPath) . " > /dev/null 2>&1 & echo $!";
+        // 5. Start MicroEmulator in ISOLATED mode (-Duser.home isolates RMS accounts/cookies + tab-specific JAR)
+        $javaCmd = "DISPLAY=:{$display} java -XX:+UseG1GC -Xms64m -Xmx256m " .
+            "-Duser.home=" . escapeshellarg($tabDir) . " " .
+            "-Dtab.display={$display} -Dtab.id={$tab->id} " .
+            "-Dsun.java2d.pmoffscreen=false " .
+            "-jar " . escapeshellarg($this->microemuJar) . " " .
+            escapeshellarg($tabJar) . " > /dev/null 2>&1 & echo $!";
         $pid = trim(shell_exec($javaCmd) ?: '');
 
         $tab->display = $display;
@@ -87,6 +109,7 @@ class EmulatorService
             exec("kill $(pgrep -f 'Xvfb :{$tab->display}') 2>/dev/null");
             exec("rm -f /tmp/.X{$tab->display}-lock /tmp/.X11-unix/X{$tab->display} 2>/dev/null");
         }
+        exec("kill $(pgrep -f 'tab.id={$tab->id}') 2>/dev/null");
 
         // Clean up memory buffer frame
         $shmFile = $this->getScreenPath($tab->id);
@@ -100,6 +123,49 @@ class EmulatorService
         $tab->save();
 
         return true;
+    }
+
+    /**
+     * Completely deletes a tab's isolated data directory and screen buffer.
+     */
+    public function deleteTabData(Tab $tab): void
+    {
+        $tabDir = "{$this->tabDataRoot}/tab_{$tab->id}";
+        if (file_exists($tabDir)) {
+            exec("rm -rf " . escapeshellarg($tabDir) . " 2>/dev/null");
+        }
+        $shmFile = $this->getScreenPath($tab->id);
+        if (file_exists($shmFile)) {
+            @unlink($shmFile);
+        }
+    }
+
+    /**
+     * Safely allocates a unique, non-conflicting X11 virtual display.
+     */
+    public function allocateDisplay(Tab $tab): int
+    {
+        $used = Tab::where('id', '!=', $tab->id)
+            ->where('status', 'running')
+            ->whereNotNull('display')
+            ->pluck('display')
+            ->map(fn($d) => (int)$d)
+            ->toArray();
+
+        $disp = 100 + ($tab->id % 800);
+        for ($i = 0; $i < 800; $i++) {
+            if (!in_array($disp, $used)) {
+                $check = trim(shell_exec("pgrep -f 'Xvfb :{$disp}'") ?: '');
+                if (empty($check)) {
+                    return $disp;
+                }
+            }
+            $disp++;
+            if ($disp > 950) {
+                $disp = 101;
+            }
+        }
+        return $disp;
     }
 
     /**

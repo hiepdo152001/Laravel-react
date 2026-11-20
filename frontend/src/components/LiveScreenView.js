@@ -48,12 +48,11 @@ export default function LiveScreenView({
       fetchTabs(session?.accessToken).then((data) => {
         if (data?.tabs && data.tabs.length > 0) {
           setTabsList(data.tabs);
-          // If current tab is stale/missing, seamlessly select the active tab
+          // Match tab by id or by name, never force back to tab[0] if user opened tab 2
           setActiveTab((prev) => {
-            if (!prev || !data.tabs.some((t) => t.id === prev.id)) {
-              return data.tabs[0];
-            }
-            return prev;
+            if (!prev) return data.tabs[0];
+            const match = data.tabs.find((t) => t.id === prev.id || t.name === prev.name);
+            return match || prev;
           });
         }
       });
@@ -137,8 +136,8 @@ export default function LiveScreenView({
       const res = await createTab(
         {
           name: newTabName.trim(),
-          game_name: activeTab.game_name || 'avatar-2-60c92e35d94f.jar',
-          emulator: activeTab.emulator || 'MicroEmulator',
+          game_name: activeTab?.game_name || 'Avatar_LAPRO.jar',
+          emulator: activeTab?.emulator || 'MicroEmulator',
           count: 1,
         },
         session?.accessToken
@@ -270,7 +269,10 @@ export default function LiveScreenView({
                 <div
                   key={t.id}
                   className={`tt-tab-list-item ${isActive ? 'active' : ''}`}
-                  onClick={() => setActiveTab(t)}
+                  onClick={() => {
+                    setActiveTab(t);
+                    setKeyAction(null);
+                  }}
                   role="button"
                   tabIndex={0}
                 >
@@ -327,6 +329,7 @@ export default function LiveScreenView({
             {displayMode === 'real' && (
               <>
                 <RealEmulatorScreen
+                  key={activeTab?.id}
                   tab={activeTab}
                   scaleMode={scaleMode}
                   externalKeyAction={keyAction}

@@ -208,6 +208,7 @@ class TabController extends Controller
     {
         $tab = Tab::findOrFail($id);
         $this->emulatorService->stop($tab);
+        $this->emulatorService->deleteTabData($tab);
         $tab->delete();
 
         return response()->json([
@@ -220,14 +221,8 @@ class TabController extends Controller
     {
         $tab = Tab::find($id);
 
-        // Fallback to active running tab or latest tab if ID from cache/mock is not found
         if (!$tab) {
-            $tab = Tab::where('status', 'running')->latest()->first() ?? Tab::latest()->first();
-        }
-
-        if (!$tab) {
-            $this->seedInitialTabs();
-            $tab = Tab::latest()->first();
+            return response()->json(['status' => 'error', 'message' => "Tab #{$id} không tồn tại"], 404);
         }
 
         // Auto-start tab if it is stopped or PID not running
@@ -261,14 +256,16 @@ class TabController extends Controller
 
     public function stream(Request $request, $id)
     {
-        $tab = Tab::find($id) ?: (Tab::where('status', 'running')->latest()->first() ?? Tab::latest()->first());
+        $tab = Tab::find($id);
 
         if (!$tab) {
-            return response()->json(['status' => 'error'], 404);
+            return response()->json(['status' => 'error', 'message' => "Tab #{$id} không tồn tại"], 404);
         }
 
-        if ($tab->status === 'running' && (!$tab->pid || !file_exists("/proc/{$tab->pid}"))) {
+        if (!$tab->pid || !file_exists("/proc/{$tab->pid}") || $tab->status !== 'running') {
+            $tab->status = 'running';
             $this->emulatorService->start($tab);
+            $tab->refresh();
         }
 
         return response()->stream(function () use ($tab) {
@@ -306,10 +303,17 @@ class TabController extends Controller
 
     public function key(Request $request, $id): JsonResponse
     {
-        $tab = Tab::find($id) ?: (Tab::where('status', 'running')->latest()->first() ?? Tab::latest()->first());
+        $tab = Tab::find($id);
         if (!$tab) {
-            return response()->json(['status' => 'error', 'message' => 'Tab không tồn tại'], 404);
+            return response()->json(['status' => 'error', 'message' => "Tab #{$id} không tồn tại"], 404);
         }
+
+        if (!$tab->pid || !file_exists("/proc/{$tab->pid}") || $tab->status !== 'running') {
+            $tab->status = 'running';
+            $this->emulatorService->start($tab);
+            $tab->refresh();
+        }
+
         $key = $request->input('key', 'Return');
 
         $this->emulatorService->sendKey($tab, $key);
@@ -322,10 +326,17 @@ class TabController extends Controller
 
     public function text(Request $request, $id): JsonResponse
     {
-        $tab = Tab::find($id) ?: (Tab::where('status', 'running')->latest()->first() ?? Tab::latest()->first());
+        $tab = Tab::find($id);
         if (!$tab) {
-            return response()->json(['status' => 'error', 'message' => 'Tab không tồn tại'], 404);
+            return response()->json(['status' => 'error', 'message' => "Tab #{$id} không tồn tại"], 404);
         }
+
+        if (!$tab->pid || !file_exists("/proc/{$tab->pid}") || $tab->status !== 'running') {
+            $tab->status = 'running';
+            $this->emulatorService->start($tab);
+            $tab->refresh();
+        }
+
         $text = $request->input('text', '');
 
         $this->emulatorService->sendText($tab, $text);
@@ -338,9 +349,15 @@ class TabController extends Controller
 
     public function click(Request $request, $id): JsonResponse
     {
-        $tab = Tab::find($id) ?: (Tab::where('status', 'running')->latest()->first() ?? Tab::latest()->first());
+        $tab = Tab::find($id);
         if (!$tab) {
-            return response()->json(['status' => 'error', 'message' => 'Tab không tồn tại'], 404);
+            return response()->json(['status' => 'error', 'message' => "Tab #{$id} không tồn tại"], 404);
+        }
+
+        if (!$tab->pid || !file_exists("/proc/{$tab->pid}") || $tab->status !== 'running') {
+            $tab->status = 'running';
+            $this->emulatorService->start($tab);
+            $tab->refresh();
         }
 
         $x = (int) $request->input('x', 0);
@@ -405,6 +422,7 @@ class TabController extends Controller
 
         try {
             $this->emulatorService->start($t1);
+            $this->emulatorService->start($t2);
         } catch (\Throwable $e) {}
     }
 }

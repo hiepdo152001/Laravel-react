@@ -159,6 +159,12 @@ export async function createTab(payload, token) {
     });
     if (res.ok) {
       const data = await res.json();
+      if (data?.tabs) {
+        const current = getLocalTabs();
+        const incomingIds = new Set(data.tabs.map((t) => t.id));
+        const merged = [...current.filter((t) => !incomingIds.has(t.id)), ...data.tabs];
+        saveLocalTabs(merged);
+      }
       return data;
     }
   } catch (err) {

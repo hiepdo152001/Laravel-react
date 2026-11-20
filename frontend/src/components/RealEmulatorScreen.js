@@ -17,8 +17,11 @@ export default function RealEmulatorScreen({
   const [lastFeedback, setLastFeedback] = useState(null);
   const [showCheatsheet, setShowCheatsheet] = useState(false);
 
-  const tabId = tab?.id || 1;
-  const [activeScreenSrc, setActiveScreenSrc] = useState(() => getTabScreenUrl(tabId));
+  const tabId = tab?.id;
+  const activeTabIdRef = useRef(tabId);
+  activeTabIdRef.current = tabId;
+
+  const [activeScreenSrc, setActiveScreenSrc] = useState(() => (tabId ? getTabScreenUrl(tabId) : ''));
   const [hasError, setHasError] = useState(false);
   const [frameCounter, setFrameCounter] = useState(0);
   const [liveFps, setLiveFps] = useState(20);
@@ -29,6 +32,7 @@ export default function RealEmulatorScreen({
   const isFetchingRef = useRef(false);
   const safetyTimeoutRef = useRef(null);
   const feedbackTimeoutRef = useRef(null);
+  const lastActionSeqRef = useRef(null);
   const frameCountWindowRef = useRef(0);
   const lastFpsCalcRef = useRef(performance.now());
   const onMetricsUpdateRef = useRef(onMetricsUpdate);
@@ -37,19 +41,22 @@ export default function RealEmulatorScreen({
 
   // Update screen URL when active tab changes
   useEffect(() => {
-    setActiveScreenSrc(getTabScreenUrl(tabId));
-    setHasError(false);
-    isFetchingRef.current = false;
+    if (tabId) {
+      setActiveScreenSrc(getTabScreenUrl(tabId));
+      setHasError(false);
+      isFetchingRef.current = false;
+    }
   }, [tabId]);
 
   // Handle incoming text from external props ("Gõ chữ" or "Dán" modal)
   useEffect(() => {
-    if (inputText && tabId) {
-      sendTabText(tabId, inputText).then(() => {
+    const currentId = activeTabIdRef.current;
+    if (inputText && currentId) {
+      sendTabText(currentId, inputText).then(() => {
         onClearInput();
       });
     }
-  }, [inputText, tabId, onClearInput]);
+  }, [inputText, onClearInput]);
 
   // High-performance Double-Buffered Adaptive Frame Loop
   const fetchNextFrame = useCallback(() => {
@@ -130,12 +137,13 @@ export default function RealEmulatorScreen({
   // Non-blocking key dispatch to MicroEmulator X11 session
   const dispatchKeyToServer = useCallback(
     (action, label = null) => {
-      if (!tabId) return;
+      const currentId = activeTabIdRef.current;
+      if (!currentId) return;
       playKeyTone();
       showKeyFeedback(label || action);
 
-      // Fire and forget non-blocking API call
-      sendTabKey(tabId, action).catch(() => {});
+      // Fire and forget non-blocking API call strictly to the current tab
+      sendTabKey(currentId, action).catch(() => {});
 
       // Trigger immediate next frame fetch after key press to update screen quickly
       if (streamMethod === 'fast') {
@@ -148,13 +156,14 @@ export default function RealEmulatorScreen({
         }, 35);
       }
     },
-    [tabId, streamMethod, fetchNextFrame, showKeyFeedback]
+    [streamMethod, fetchNextFrame, showKeyFeedback]
   );
 
   // Direct mouse / touch click on the running emulator screen
   const handleScreenClick = useCallback(
     (e) => {
-      if (!tabId) return;
+      const currentId = activeTabIdRef.current;
+      if (!currentId) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
       const clickY = e.clientY - rect.top;
@@ -168,7 +177,7 @@ export default function RealEmulatorScreen({
 
       playKeyTone();
       showKeyFeedback(`Chạm (${x}, ${y})`);
-      sendTabClick(tabId, x, y).catch(() => {});
+      sendTabClick(currentId, x, y).catch(() => {});
 
       if (streamMethod === 'fast') {
         setTimeout(() => {
@@ -177,18 +186,19 @@ export default function RealEmulatorScreen({
         }, 50);
       }
     },
-    [tabId, streamMethod, fetchNextFrame, showKeyFeedback]
+    [streamMethod, fetchNextFrame, showKeyFeedback]
   );
 
   // Send whole text string directly to game
   const handleSendTextDirect = useCallback(
     async (text) => {
-      if (!tabId || !text) return;
+      const currentId = activeTabIdRef.current;
+      if (!currentId || !text) return;
       playKeyTone();
       showKeyFeedback(`Gõ: "${text.length > 15 ? text.slice(0, 15) + '…' : text}"`);
 
       try {
-        await sendTabText(tabId, text);
+        await sendTabText(currentId, text);
         if (streamMethod === 'fast') {
           setTimeout(() => {
             isFetchingRef.current = false;
@@ -199,7 +209,7 @@ export default function RealEmulatorScreen({
         // ignore
       }
     },
-    [tabId, streamMethod, fetchNextFrame, showKeyFeedback]
+    [streamMethod, fetchNextFrame, showKeyFeedback]
   );
 
   // Inline Quick Input Submit (typing or pasting directly into game)
@@ -254,9 +264,10 @@ export default function RealEmulatorScreen({
     };
   }, [streamMethod, fetchNextFrame]);
 
-  // Listen to external virtual keypad clicks
+  // Listen to external virtual keypad clicks (guaranteed once per action via seq check)
   useEffect(() => {
-    if (externalKeyAction) {
+    if (externalKeyAction && externalKeyAction.seq && externalKeyAction.seq !== lastActionSeqRef.current) {
+      lastActionSeqRef.current = externalKeyAction.seq;
       dispatchKeyToServer(externalKeyAction.action, externalKeyAction.label);
     }
   }, [externalKeyAction, dispatchKeyToServer]);

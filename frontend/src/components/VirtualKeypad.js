@@ -1,14 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 export default function VirtualKeypad({ onKeyPress }) {
   const [activeKey, setActiveKey] = useState(null);
+  const holdIntervalRef = useRef(null);
+  const holdTimeoutRef = useRef(null);
+
+  const clearHold = () => {
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+      holdTimeoutRef.current = null;
+    }
+    if (holdIntervalRef.current) {
+      clearInterval(holdIntervalRef.current);
+      holdIntervalRef.current = null;
+    }
+    setActiveKey(null);
+  };
+
+  useEffect(() => {
+    return () => clearHold();
+  }, []);
 
   const handlePress = (action, label) => {
     setActiveKey(action);
     onKeyPress({ action, label, seq: Date.now() + Math.random() });
     setTimeout(() => {
-      setActiveKey(null);
+      setActiveKey((curr) => (curr === action ? null : curr));
     }, 150);
+  };
+
+  // Fast continuous movement on press & hold for navigation buttons
+  const startHold = (action, label) => {
+    clearHold();
+    handlePress(action, label);
+
+    holdTimeoutRef.current = setTimeout(() => {
+      holdIntervalRef.current = setInterval(() => {
+        onKeyPress({ action, label, seq: Date.now() + Math.random() });
+      }, 80);
+    }, 220);
   };
 
   const isKeyActive = (key) => activeKey === key;
@@ -32,8 +62,13 @@ export default function VirtualKeypad({ onKeyPress }) {
         <button
           type="button"
           className={`key-btn nav-btn ${isKeyActive('UP') ? 'active' : ''}`}
-          onClick={() => handlePress('UP', '▲')}
-          title="Lên (Mũi tên lên / Phím 2)"
+          onMouseDown={() => startHold('UP', '▲')}
+          onMouseUp={clearHold}
+          onMouseLeave={clearHold}
+          onTouchStart={() => startHold('UP', '▲')}
+          onTouchEnd={clearHold}
+          onTouchCancel={clearHold}
+          title="Lên (Giữ để đi liên tục nhanh)"
         >
           <span className="key-icon">▲</span>
         </button>
@@ -52,8 +87,13 @@ export default function VirtualKeypad({ onKeyPress }) {
         <button
           type="button"
           className={`key-btn nav-btn ${isKeyActive('LEFT') ? 'active' : ''}`}
-          onClick={() => handlePress('LEFT', '◀')}
-          title="Trái (Mũi tên trái / Phím 4)"
+          onMouseDown={() => startHold('LEFT', '◀')}
+          onMouseUp={clearHold}
+          onMouseLeave={clearHold}
+          onTouchStart={() => startHold('LEFT', '◀')}
+          onTouchEnd={clearHold}
+          onTouchCancel={clearHold}
+          title="Trái (Giữ để đi liên tục nhanh)"
         >
           <span className="key-icon">◀</span>
         </button>
@@ -71,8 +111,13 @@ export default function VirtualKeypad({ onKeyPress }) {
         <button
           type="button"
           className={`key-btn nav-btn ${isKeyActive('RIGHT') ? 'active' : ''}`}
-          onClick={() => handlePress('RIGHT', '▶')}
-          title="Phải (Mũi tên phải / Phím 6)"
+          onMouseDown={() => startHold('RIGHT', '▶')}
+          onMouseUp={clearHold}
+          onMouseLeave={clearHold}
+          onTouchStart={() => startHold('RIGHT', '▶')}
+          onTouchEnd={clearHold}
+          onTouchCancel={clearHold}
+          title="Phải (Giữ để đi liên tục nhanh)"
         >
           <span className="key-icon">▶</span>
         </button>
@@ -91,8 +136,13 @@ export default function VirtualKeypad({ onKeyPress }) {
         <button
           type="button"
           className={`key-btn nav-btn ${isKeyActive('DOWN') ? 'active' : ''}`}
-          onClick={() => handlePress('DOWN', '▼')}
-          title="Xuống (Mũi tên xuống / Phím 8)"
+          onMouseDown={() => startHold('DOWN', '▼')}
+          onMouseUp={clearHold}
+          onMouseLeave={clearHold}
+          onTouchStart={() => startHold('DOWN', '▼')}
+          onTouchEnd={clearHold}
+          onTouchCancel={clearHold}
+          title="Xuống (Giữ để đi liên tục nhanh)"
         >
           <span className="key-icon">▼</span>
         </button>
