@@ -1,10 +1,20 @@
 FROM php:8.2-fpm
-# Install system dependencies
+# Install system dependencies including OpenJDK 21, Xvfb, xdotool, ImageMagick, and Openbox
 RUN apt-get update && apt-get install -y \
     curl \
     git \
     zip \
-    unzip
+    unzip \
+    procps \
+    xvfb \
+    xdotool \
+    imagemagick \
+    openbox \
+    openjdk-21-jre \
+    && rm -rf /var/lib/apt/lists/*
+
+# Fix ImageMagick security policy if needed
+RUN sed -i 's/<policy domain="coder" rights="none" pattern="PDF" \/>/<policy domain="coder" rights="read|write" pattern="PDF" \/>/g' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
 
 # Install composer and php-extension-installer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

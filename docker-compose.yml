@@ -26,7 +26,7 @@ services:
         volumes:
             - ./docker/mysql:/var/lib/mysql
         ports:
-            - 3306:3306
+            - 3307:3307
         networks:
             - backend
 
@@ -54,19 +54,19 @@ services:
             - php
             - mysql
         ports:
-            - 8000:8000
+            - 8001:8001
         networks:
             - backend
             - frontend
 
-    mailhog:
-        image: mailhog/mailhog:latest
-        container_name: mailhog
-        ports:
-            - 1025:1025
-            - 8025:8025
-        networks:
-            - backend
+    #mailhog:
+    #    image: mailhog/mailhog:latest
+    #    container_name: mailhog
+    #    ports:
+    #        - 1025:1025
+    #        - 8025:8025
+    #    networks:
+    #        - backend
 
     node:
         container_name: nodejs
